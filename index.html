@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>에코PE 사이즈 설문</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap">
+<link rel="stylesheet" href="css/style.css?v=1.0.1">
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><b>(주)에누리하우스</b><span>Eco PE 대형비닐봉투</span></header>
+  <div id="setupNotice" class="notice" hidden></div>
+
+  <main id="survey">
+    <section class="hero">
+      <h1>새로 만들 봉투,<br><span class="mark">고객님이 크기를 정해 주세요.</span></h1>
+      <p>가장 많이 선택된 크기부터 만들 예정이에요. 1분이면 끝나요.</p>
+      <div class="banner" id="couponBanner" hidden></div>
+    </section>
+
+    <form id="f" novalidate>
+      <fieldset>
+        <legend>1. 필요한 크기를 골라 주세요 <small id="pickHint"></small></legend>
+        <div class="cards" id="sizeList"></div>
+        <label class="opt"><input type="checkbox" id="customOn"> 원하는 크기가 따로 있어요 (직접 입력)</label>
+        <div class="sub" id="customBox" hidden>
+          <div class="row">
+            <label for="cw" class="hint">가로</label><input type="number" id="cw" inputmode="numeric" min="10" max="400" placeholder="예: 90"> cm ×
+            <label for="ch" class="hint">세로</label><input type="number" id="ch" inputmode="numeric" min="10" max="400" placeholder="예: 120"> cm
+          </div>
+          <label class="f" for="ct">두께</label>
+          <select id="ct">
+            <option value="">잘 모르겠어요</option><option>0.04</option><option>0.05</option><option>0.06</option><option>0.07</option><option>0.08 이상</option>
+          </select>
+          <label class="f" for="cn">어디에 쓰실 건가요? (선택)</label>
+          <input type="text" id="cn" maxlength="100" placeholder="예: 킹 사이즈 토퍼 보관">
+        </div>
+        <p class="err" id="e1"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>2. 주로 어디에 쓰세요? <small>(여러 개 선택 가능)</small></legend>
+        <div class="grid2" id="useList"></div>
+        <p class="err" id="e2"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>3. 두께는 어떤 게 좋으세요?</legend>
+        <div id="thickList"></div>
+        <p class="err" id="e3"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>4. 보통 어떻게 사세요?</legend>
+        <div id="qtyList"></div>
+        <p class="err" id="e4"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>5. 하고 싶은 말씀 <small>(선택)</small></legend>
+        <label for="cm" class="hint">불편했던 점, 바라는 점 무엇이든 좋아요.</label>
+        <textarea id="cm" maxlength="500"></textarea>
+      </fieldset>
+
+      <fieldset class="coupon" id="couponSet" hidden>
+        <legend>감사 쿠폰 받기 <small>(대상 고객만)</small></legend>
+        <div class="cond" id="couponCond"></div>
+        <label class="opt"><input type="checkbox" id="couponOn"> 쿠폰 대상이에요. 쿠폰 받을게요.</label>
+        <div id="couponBox" hidden>
+          <label class="f" for="nm">주문자 이름</label>
+          <input type="text" id="nm" maxlength="20" autocomplete="name">
+          <label class="f" for="ph">휴대폰 번호 (주문 시 입력한 번호)</label>
+          <input type="tel" id="ph" maxlength="13" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000">
+          <label class="f" for="chn">주로 구매하신 곳</label>
+          <select id="chn"></select>
+          <div class="consent" id="consentText"></div>
+          <label class="opt"><input type="checkbox" id="agree"> 개인정보 수집·이용에 동의합니다. (필수)</label>
+        </div>
+        <p class="err" id="e5"></p>
+      </fieldset>
+
+      <button type="submit" class="primary" id="submitBtn">설문 제출하기</button>
+      <div class="msg" id="formMsg" role="status" aria-live="polite"></div>
+    </form>
+  </main>
+
+  <section class="done" id="done" hidden>
+    <h2>참여해 주셔서 감사합니다!</h2>
+    <p id="doneText">보내주신 의견으로 다음 봉투 크기를 정하겠습니다.</p>
+  </section>
+
+  <section class="done" id="closed" hidden>
+    <h2 id="closedTitle">설문 기간이 아니에요</h2>
+    <p id="closedText"></p>
+  </section>
+
+  <footer>(주)에누리하우스 · 사이즈 설문 v<span id="ver"></span></footer>
+</div>
+<script>
+/* 프로그램이 못 뜨는 경우를 알려주는 안전장치 (모듈 스크립트와 별개로 항상 실행) */
+(function () {
+  function note(t) { var n = document.getElementById('setupNotice'); if (n) { n.hidden = false; n.textContent = t; } }
+  if (location.protocol === 'file:') {
+    note('PC에서 파일을 더블클릭해 열면 작동하지 않아요(브라우저 보안 제한). GitHub에 올린 주소(https://내아이디.github.io/ecope-survey/)로 열어 주세요.');
+    return;
+  }
+  setTimeout(function () {
+    if (!window.__appReady) note('프로그램 파일을 불러오지 못했어요. Ctrl+F5로 새로고침해 보시고, 계속되면 GitHub에 js 폴더와 css 폴더가 함께 올라갔는지 확인해 주세요.');
+  }, 5000);
+})();
+</script>
+<script type="module" src="js/survey.js?v=1.0.1"></script>
+</body>
+</html>
