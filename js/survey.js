@@ -1,4 +1,16 @@
-import * as C from './config.js?v=1.0.2';
+const C = await import('./config.js?t=' + Date.now()); // 매번 최신 설정을 읽음 (GitHub·브라우저 캐시 우회)
+function cfgProblems() {
+  const f = C.firebaseConfig || {}, out = [];
+  ['apiKey', 'authDomain', 'projectId', 'appId'].forEach((k) => {
+    if (!f[k]) {
+      const typo = Object.keys(f).find((x) => x !== k && x.toLowerCase().includes(k.toLowerCase()));
+      out.push(`${k} 값이 없음` + (typo ? ` ('${typo}' 오타 같아요 → '${k}'로 고쳐 주세요)` : ''));
+    }
+  });
+  return out;
+}
+const CFG_PROBLEMS = cfgProblems();
+const BUYER_CHECK = C.BUYER_CHECK !== false;
 
 const $ = (s) => document.querySelector(s);
 const won = (n) => n.toLocaleString('ko-KR') + '원';
@@ -18,24 +30,39 @@ const kst = (d, end) => new Date(d + (end ? 'T23:59:59+09:00' : 'T00:00:00+09:00
 const now = new Date();
 const surveyOpen = now >= kst(C.EVENT.surveyStart) && now <= kst(C.EVENT.surveyEnd, true);
 const couponOpen = surveyOpen && now <= kst(C.EVENT.couponEnd, true);
-const configured = !!(C.firebaseConfig.apiKey && C.firebaseConfig.projectId);
+const configured = CFG_PROBLEMS.length === 0;
 
 // 유입 경로 (?src=)
 const srcParam = new URLSearchParams(location.search).get('src') || '';
 const SRC = Object.prototype.hasOwnProperty.call(C.SOURCES, srcParam) ? srcParam : (srcParam ? 'etc' : 'direct');
 
-function show(id) { ['#survey', '#done', '#closed'].forEach((s) => { $(s).hidden = s !== id; }); }
+function show(id) { ['#gate', '#survey', '#done', '#closed'].forEach((s) => { const el = $(s); if (el) el.hidden = s !== id; }); }
 
 if (!configured) {
   const n = $('#setupNotice');
   n.hidden = false;
-  n.textContent = '[관리자 안내] js/config.js 에 Firebase 설정이 아직 없습니다. 지금은 화면 확인만 가능하고 제출은 저장되지 않습니다.';
+  n.textContent = '[관리자 안내] js/config.js 설정 확인 필요: ' + CFG_PROBLEMS.join(' / ') + ' — 지금은 제출이 저장되지 않습니다.';
+}
+
+// ---------- 휴대폰 번호 ----------
+const digitsOf = (v) => String(v || '').replace(/\D/g, '');
+const validPhone = (d) => /^01[016789]\d{7,8}$/.test(d);
+function fmtPhoneInput(el) {
+  el.addEventListener('input', () => {
+    const d = digitsOf(el.value).slice(0, 11);
+    el.value = d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}`;
+  });
+}
+// 관리자 페이지와 같은 방식 (설문 코드 + 번호 → SHA-256)
+async function buyerHash(phone) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${C.EVENT.id}:${phone}`));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ---------- 화면 그리기 ----------
 function sizeSvg(w, h) {
   const k = 56 / 240, W = Math.round(w * k), H = Math.round(h * k);
-  return `<svg width="${56}" height="${56}" viewBox="0 0 56 56" aria-hidden="true"><rect x="${(56 - W) / 2}" y="${56 - H}" width="${W}" height="${H}" fill="#E8EDFB" stroke="#1F47C6" stroke-width="1.5"></rect></svg>`;
+  return `<svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><rect x="${(56 - W) / 2}" y="${56 - H}" width="${W}" height="${H}" fill="#E8EDFB" stroke="#1F47C6" stroke-width="1.5"></rect></svg>`;
 }
 $('#pickHint').textContent = `(최대 ${C.MAX_PICK}개)`;
 $('#sizeList').innerHTML = C.SIZE_OPTIONS.map((o) => `
@@ -49,21 +76,28 @@ $('#chn').innerHTML = C.CHANNELS.map((c) => `<option>${c}</option>`).join('');
 const E = C.EVENT;
 const condHtml = `<b>대상</b> 에누리하우스 누적 구매 <b>${won(E.couponHistoryAmount)} 이상</b> 고객님
   <ul><li>혜택: 다음 주문 <b>${won(E.couponMinOrder)} 이상</b> 구매 시 <b>${won(E.couponDiscount)} 할인</b> 쿠폰</li>
-  <li>구매 내역을 확인한 뒤 순차적으로 지급해 드립니다. (대상이 아니면 지급되지 않아요)</li>
+  <li>${BUYER_CHECK ? '구매 내역으로 대상 여부를 확인했어요. 신청하시면 순차적으로 지급해 드립니다.' : '구매 내역을 확인한 뒤 순차적으로 지급해 드립니다. (대상이 아니면 지급되지 않아요)'}</li>
   <li>쿠폰 신청 마감: ${E.couponEnd} · 휴대폰 번호 1개당 1회</li></ul>`;
 if (couponOpen) {
-  $('#couponSet').hidden = false;
   $('#couponCond').innerHTML = condHtml;
   $('#couponBanner').hidden = false;
   $('#couponBanner').innerHTML = `누적 구매 ${won(E.couponHistoryAmount)} 이상 고객님께는 참여 감사 <b>${won(E.couponDiscount)} 할인쿠폰</b>을 드려요. (${won(E.couponMinOrder)} 이상 구매 시)`;
+  if (!BUYER_CHECK) $('#couponSet').hidden = false; // 구매자 확인 모드에서는 대상자에게만 보임
 }
 $('#consentText').innerHTML = `<b>개인정보 수집·이용 안내</b>
-  <table><tr><th>수집 항목</th><td>이름, 휴대폰 번호, 주 구매처</td></tr>
-  <tr><th>목적</th><td>구매 내역 확인 및 할인쿠폰 지급</td></tr>
-  <tr><th>보유 기간</th><td>쿠폰 지급(또는 대상 확인) 완료 후 지체 없이 파기, 늦어도 쿠폰 신청 마감 후 3개월 이내 파기</td></tr></table>
+  <table><tr><th>수집 항목</th><td>이름, 휴대폰 번호${BUYER_CHECK ? '' : ', 주 구매처'}</td></tr>
+  <tr><th>목적</th><td>할인쿠폰 지급${BUYER_CHECK ? '' : ' 및 구매 내역 확인'}</td></tr>
+  <tr><th>보유 기간</th><td>쿠폰 지급 완료 후 지체 없이 파기, 늦어도 쿠폰 신청 마감 후 3개월 이내 파기</td></tr></table>
   동의하지 않으셔도 설문 참여는 가능하며, 이 경우 쿠폰은 지급되지 않습니다.`;
 
-// 최대 선택 개수 제한
+// 구매자 확인 모드: 쿠폰 칸의 번호·구매처는 확인한 값 사용
+if (BUYER_CHECK) {
+  $('#ph').readOnly = true;
+  $('#ph').closest('div').querySelector('label[for=ph]').textContent = '휴대폰 번호 (확인된 번호)';
+  $('#chn').closest('div').querySelector('label[for=chn]').hidden = true;
+  $('#chn').hidden = true;
+}
+
 $('#sizeList').addEventListener('change', (e) => {
   const on = document.querySelectorAll('input[name=size]:checked');
   if (on.length > C.MAX_PICK) { e.target.checked = false; $('#e1').textContent = `크기는 최대 ${C.MAX_PICK}개까지 고를 수 있어요.`; }
@@ -71,10 +105,59 @@ $('#sizeList').addEventListener('change', (e) => {
 });
 $('#customOn').addEventListener('change', (e) => { $('#customBox').hidden = !e.target.checked; });
 $('#couponOn').addEventListener('change', (e) => { $('#couponBox').hidden = !e.target.checked; });
-$('#ph').addEventListener('input', (e) => {
-  const d = e.target.value.replace(/\D/g, '').slice(0, 11);
-  e.target.value = d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}`;
-});
+fmtPhoneInput($('#ph'));
+fmtPhoneInput($('#gph'));
+
+// ---------- Firebase ----------
+let fbPromise = null;
+function loadFb() {
+  if (!fbPromise) {
+    fbPromise = Promise.all([import(`${C.FB_SDK}/firebase-app.js`), import(`${C.FB_SDK}/firebase-firestore.js`)])
+      .then(([app, fs]) => ({ fs, db: fs.getFirestore(app.initializeApp(C.firebaseConfig)) }))
+      .catch((e) => { fbPromise = null; throw Object.assign(new Error('sdk-load'), { code: 'sdk-load', cause: e }); });
+  }
+  return fbPromise;
+}
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'timeout' })), ms))]);
+const randId = () => {
+  const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', b = new Uint8Array(20);
+  crypto.getRandomValues(b);
+  return 'r_' + [...b].map((x) => a[x % a.length]).join('');
+};
+
+// ---------- 구매자 확인 ----------
+let buyer = null; // { hash, phone, eligible }
+function gateMsg(t, kind) { const m = $('#gateMsg'); m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = t || ''; }
+
+async function checkBuyer() {
+  const phone = digitsOf($('#gph').value);
+  if (!validPhone(phone)) { gateMsg('휴대폰 번호를 정확히 적어 주세요. (예: 010-1234-5678)', 'bad'); return; }
+  if (!configured) { gateMsg('아직 설문 준비 중이에요. (관리자: Firebase 설정 필요)', 'bad'); return; }
+  const btn = $('#gateBtn'); btn.disabled = true; btn.textContent = '확인 중…'; gateMsg('');
+  try {
+    const hash = await buyerHash(phone);
+    const { fs, db } = await withTimeout(loadFb(), 15000);
+    const b = await withTimeout(fs.getDoc(fs.doc(db, 'buyers', hash)), 15000);
+    if (!b.exists()) {
+      gateMsg(`구매 고객 명단에서 이 번호를 찾지 못했어요. 주문하실 때 입력한 번호인지 확인해 주세요. 안심번호로 주문하셨거나 최근 주문이라 아직 반영되지 않았을 수 있어요. 궁금하시면 ${C.EVENT.contact}으로 알려 주세요.`, 'bad');
+      return;
+    }
+    const d = await withTimeout(fs.getDoc(fs.doc(db, 'done', hash)), 15000);
+    if (d.exists()) { ls.set(LS_DONE, '1'); show('#done'); $('#doneText').textContent = '이 번호로 이미 참여해 주셨어요. 감사합니다!'; return; }
+    buyer = { hash, phone, eligible: (b.data() || {}).e === true };
+    $('#ph').value = `${phone.slice(0, 3)}-${phone.slice(3, phone.length - 4)}-${phone.slice(-4)}`;
+    if (couponOpen && buyer.eligible) $('#couponSet').hidden = false;
+    show('#survey');
+    window.scrollTo(0, 0);
+  } catch (e) {
+    console.warn('[survey] buyer check failed:', e);
+    gateMsg(e.code === 'permission-denied'
+      ? '확인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요. (관리자: 보안 규칙 확인 필요)'
+      : '인터넷 연결이 불안정해 확인하지 못했어요. 잠시 후 다시 눌러 주세요.', 'bad');
+  } finally { btn.disabled = false; btn.textContent = '확인하기'; }
+}
+$('#gateBtn').addEventListener('click', checkBuyer);
+$('#gph').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkBuyer(); } });
 
 // ---------- 입력값 모으기 + 검사 ----------
 function collect() {
@@ -95,62 +178,53 @@ function collect() {
   const qty = (document.querySelector('input[name=qty]:checked') || {}).value;
   if (!qty) err.e4 = '하나를 골라 주세요.';
 
-  const coupon = couponOpen && $('#couponOn').checked;
+  const couponAllowed = couponOpen && (!BUYER_CHECK || (buyer && buyer.eligible));
+  const coupon = couponAllowed && $('#couponOn').checked;
   let name = '', phone = '', channel = '', consent = false;
   if (coupon) {
     name = $('#nm').value.trim();
-    phone = $('#ph').value.replace(/\D/g, '');
-    channel = $('#chn').value;
+    phone = BUYER_CHECK ? buyer.phone : digitsOf($('#ph').value);
+    channel = BUYER_CHECK ? '스마트스토어' : $('#chn').value;
     consent = $('#agree').checked;
     if (name.length < 2 || name.length > 20) err.e5 = '주문자 이름을 정확히 적어 주세요.';
-    else if (!/^01[016789]\d{7,8}$/.test(phone)) err.e5 = '휴대폰 번호를 정확히 적어 주세요. (예: 010-1234-5678)';
+    else if (!validPhone(phone)) err.e5 = '휴대폰 번호를 정확히 적어 주세요. (예: 010-1234-5678)';
     else if (!consent) err.e5 = '쿠폰을 받으시려면 개인정보 수집·이용에 동의해 주세요.';
   }
   const data = { sizes, custom, uses, thick: thick || '', qty: qty || '', comment: $('#cm').value.trim().slice(0, 500),
-    coupon, name, phone, channel, consent, src: SRC };
+    coupon, name, phone, channel, consent, src: SRC, buyer: BUYER_CHECK && buyer ? buyer.hash : '' };
   return { data, err };
 }
-
-// ---------- Firebase ----------
-let fbPromise = null;
-function loadFb() {
-  if (!fbPromise) {
-    fbPromise = Promise.all([import(`${C.FB_SDK}/firebase-app.js`), import(`${C.FB_SDK}/firebase-firestore.js`)])
-      .then(([app, fs]) => ({ fs, db: fs.getFirestore(app.initializeApp(C.firebaseConfig)) }))
-      .catch((e) => { fbPromise = null; throw Object.assign(new Error('sdk-load'), { code: 'sdk-load', cause: e }); });
-  }
-  return fbPromise;
-}
-const randId = () => {
-  const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', b = new Uint8Array(20);
-  crypto.getRandomValues(b);
-  return 'r_' + [...b].map((x) => a[x % a.length]).join('');
-};
-const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'timeout' })), ms))]);
 
 async function send(item) {
   if (!configured) throw Object.assign(new Error('not-configured'), { code: 'not-configured' });
   const { fs, db } = await withTimeout(loadFb(), 15000);
   const payload = { ...item.data, v: C.APP_VERSION, status: 'pending', createdAt: fs.serverTimestamp() };
-  await withTimeout(fs.setDoc(fs.doc(db, 'responses', item.id), payload), 15000);
+  if (item.data.buyer) {
+    // 응답과 '참여 완료 표시'를 한 번에 저장 (구매자 1명당 1회)
+    const b = fs.writeBatch(db);
+    b.set(fs.doc(db, 'responses', item.id), payload);
+    b.set(fs.doc(db, 'done', item.data.buyer), { at: fs.serverTimestamp() });
+    await withTimeout(b.commit(), 15000);
+  } else {
+    await withTimeout(fs.setDoc(fs.doc(db, 'responses', item.id), payload), 15000);
+  }
 }
 
-function finish() {
+function finish(coupon) {
   ls.set(LS_DONE, '1');
   ls.del(LS_PENDING);
-  const c = JSON.parse(ls.get(LS_PENDING + '_c') || 'false');
-  $('#doneText').textContent = c
-    ? '쿠폰 신청도 접수됐어요. 구매 내역 확인 후 순차적으로 지급해 드릴게요.'
+  $('#doneText').textContent = coupon
+    ? '쿠폰 신청도 접수됐어요. 순차적으로 지급해 드릴게요.'
     : '보내주신 의견으로 다음 봉투 크기를 정하겠습니다.';
-  ls.del(LS_PENDING + '_c');
   show('#done');
   window.scrollTo(0, 0);
 }
 
-function errorText(e, item, isRetry) {
+function errorText(e, item) {
   const code = (e && e.code) || '';
   if (code === 'not-configured') return '아직 설문 준비 중이에요. (관리자: Firebase 설정 필요)';
   if (code === 'permission-denied') {
+    if (item.data.buyer) return '이 번호로 이미 참여하셨거나 저장할 수 없는 상태예요. 문제가 계속되면 ' + C.EVENT.contact + '으로 알려 주세요.';
     return item.data.coupon
       ? '이미 이 휴대폰 번호로 참여하셨어요. 번호당 1회만 참여할 수 있어요.'
       : '입력하신 내용을 저장하지 못했어요. 항목을 다시 확인해 주세요.';
@@ -162,17 +236,15 @@ async function submitItem(item, isRetry) {
   const btn = $('#submitBtn'), msg = $('#formMsg');
   btn.disabled = true; btn.textContent = '보내는 중…'; msg.className = 'msg'; msg.textContent = '';
   ls.set(LS_PENDING, JSON.stringify(item));
-  ls.set(LS_PENDING + '_c', JSON.stringify(item.data.coupon));
   try {
     await send(item);
-    finish();
+    finish(item.data.coupon);
   } catch (e) {
-    // 재전송인데 '권한 거부' = 앞서 보낸 것이 이미 저장된 경우 → 성공 처리
-    // (검사에서 거부된 응답은 보관하지 않으므로, 재전송에서 거부되면 이미 저장된 것)
-    if (isRetry && e.code === 'permission-denied') { finish(); return; }
+    // 검사에서 거부된 응답은 보관하지 않으므로, 재전송에서 거부되면 앞서 보낸 것이 이미 저장된 것
+    if (isRetry && e.code === 'permission-denied') { finish(item.data.coupon); return; }
     if (e.code === 'permission-denied' || e.code === 'not-configured') ls.del(LS_PENDING);
     msg.className = 'msg bad';
-    msg.textContent = errorText(e, item, isRetry);
+    msg.textContent = errorText(e, item);
     btn.disabled = false;
     btn.textContent = ls.get(LS_PENDING) ? '다시 보내기' : '설문 제출하기';
     console.warn('[survey] submit failed:', e);
@@ -183,11 +255,13 @@ $('#f').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const pending = ls.get(LS_PENDING);
   if (pending && $('#submitBtn').textContent === '다시 보내기') { submitItem(JSON.parse(pending), true); return; }
+  if (BUYER_CHECK && !buyer) { show('#gate'); return; }
   const { data, err } = collect();
   ['e1', 'e2', 'e3', 'e4', 'e5'].forEach((k) => { $('#' + k).textContent = err[k] || ''; });
   const first = Object.keys(err)[0];
   if (first) { $('#' + first).closest('fieldset').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-  submitItem({ id: data.coupon ? 'p_' + data.phone : randId(), data }, false);
+  const id = BUYER_CHECK ? 'b_' + buyer.hash : (data.coupon ? 'p_' + data.phone : randId());
+  submitItem({ id, data }, false);
 });
 
 // ---------- 시작 ----------
@@ -196,12 +270,15 @@ if (!surveyOpen) {
   const before = now < kst(C.EVENT.surveyStart);
   $('#closedTitle').textContent = before ? '설문 준비 중이에요' : '설문이 마감됐어요';
   $('#closedText').textContent = before ? `${C.EVENT.surveyStart}부터 참여하실 수 있어요.` : '참여해 주신 모든 분께 감사드립니다.';
+} else if (ls.get(LS_PENDING)) {
+  // 지난번에 못 보낸 응답이 있으면 자동 재전송
+  show('#survey');
+  try { submitItem(JSON.parse(ls.get(LS_PENDING)), true); } catch (e) { ls.del(LS_PENDING); show(BUYER_CHECK ? '#gate' : '#survey'); }
 } else if (ls.get(LS_DONE)) {
   show('#done');
   $('#doneText').textContent = '이미 참여해 주셨어요. 감사합니다!';
-} else if (ls.get(LS_PENDING)) {
-  // 지난번에 못 보낸 응답이 있으면 자동 재전송
-  try { submitItem(JSON.parse(ls.get(LS_PENDING)), true); } catch (e) { ls.del(LS_PENDING); }
+} else {
+  show(BUYER_CHECK ? '#gate' : '#survey');
 }
 window.addEventListener('online', () => {
   const p = ls.get(LS_PENDING);

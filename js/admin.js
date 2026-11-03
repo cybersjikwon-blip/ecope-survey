@@ -1,4 +1,15 @@
-import * as C from './config.js?v=1.0.2';
+const C = await import('./config.js?t=' + Date.now()); // 매번 최신 설정을 읽음 (GitHub·브라우저 캐시 우회)
+function cfgProblems() {
+  const f = C.firebaseConfig || {}, out = [];
+  ['apiKey', 'authDomain', 'projectId', 'appId'].forEach((k) => {
+    if (!f[k]) {
+      const typo = Object.keys(f).find((x) => x !== k && x.toLowerCase().includes(k.toLowerCase()));
+      out.push(`${k} 값이 없음` + (typo ? ` ('${typo}' 오타 같아요 → '${k}'로 고쳐 주세요)` : ''));
+    }
+  });
+  return out;
+}
+const CFG_PROBLEMS = cfgProblems();
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -10,8 +21,8 @@ const msg = (el, text, kind) => { el.className = 'msg' + (kind ? ' ' + kind : ''
 
 window.__appReady = true;
 $('#ver').textContent = C.APP_VERSION;
-const configured = !!(C.firebaseConfig.apiKey && C.firebaseConfig.projectId);
-if (!configured) { $('#setupNotice').hidden = false; $('#setupNotice').textContent = 'js/config.js 에 Firebase 설정을 먼저 넣어 주세요. (README 2~5단계)'; }
+const configured = CFG_PROBLEMS.length === 0;
+if (!configured) { $('#setupNotice').hidden = false; $('#setupNotice').textContent = 'js/config.js 의 Firebase 설정을 확인해 주세요: ' + CFG_PROBLEMS.join(' / '); }
 
 let A, F, auth, db, rows = [];
 
@@ -31,7 +42,7 @@ async function boot() {
 }
 
 $('#loginBtn').addEventListener('click', async () => {
-  if (!configured) { msg($('#loginMsg'), 'js/config.js 에 Firebase 설정(firebaseConfig)이 아직 없어서 로그인할 수 없어요. README 1-5단계를 먼저 해 주세요.', 'bad'); return; }
+  if (!configured) { msg($('#loginMsg'), 'js/config.js 설정 문제로 로그인할 수 없어요: ' + CFG_PROBLEMS.join(' / '), 'bad'); return; }
   if (!auth) { msg($('#loginMsg'), 'Firebase를 아직 불러오는 중이거나 불러오지 못했어요. 잠시 후 다시 누르거나 새로고침해 주세요.', 'bad'); boot(); return; }
   const p = new A.GoogleAuthProvider();
   p.setCustomParameters({ prompt: 'select_account' });
@@ -64,7 +75,7 @@ function onUser(u) {
     msg($('#loginMsg'), `로그인한 계정: ${u.email} / config.js 에 등록된 관리자: ${reg}${hint}`, 'bad');
     A.signOut(auth);
   }
-  if (ok) { load(); setupQr(); }
+  if (ok) { load(); setupQr(); loadBuyerMeta(); }
 }
 
 async function load() {
@@ -213,6 +224,89 @@ $('#copyBtn').addEventListener('click', async () => {
   const url = $('#qrUrl').textContent;
   try { await navigator.clipboard.writeText(url); msg($('#dashMsg'), '링크를 복사했어요.', 'ok'); }
   catch (e) { msg($('#dashMsg'), '자동 복사가 안 돼요. 아래 주소를 길게 눌러 복사해 주세요.', 'bad'); }
+});
+
+// ---------- 구매자 명단 (장부 → CSV → 암호값으로 바꿔 Firestore buyers 에 저장) ----------
+async function buyerHash(phone) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${C.EVENT.id}:${phone}`));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function parseCsv(text) {
+  const rows = []; let row = [], cur = '', q = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',' || ch === '\t') { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
+    else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
+}
+async function readTextSmart(file) {
+  const buf = await file.arrayBuffer();
+  const utf = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+  if (!utf.includes('�')) return utf;
+  try { return new TextDecoder('euc-kr').decode(buf); } catch (e) { return utf; } // 엑셀에서 다시 저장한 CSV 대비
+}
+async function loadBuyerMeta() {
+  try {
+    const m = await F.getDoc(F.doc(db, 'meta', 'buyers'));
+    const d = m.exists() ? m.data() : null;
+    $('#buyerKpis').innerHTML = d
+      ? [['등록된 구매자', d.count.toLocaleString()], [`쿠폰 대상 (${(C.EVENT.couponHistoryAmount / 10000).toLocaleString()}만원↑)`, d.eligible.toLocaleString()],
+         ['마지막으로 올린 날', d.at ? fmtDate(d.at.toDate()) : '-']].map(([k, v]) => `<div class="kpi">${k}<b>${v}</b></div>`).join('')
+      : '<p class="hint">아직 올린 명단이 없어요. 명단이 없으면 고객이 확인 단계에서 막힙니다.</p>';
+  } catch (e) { $('#buyerKpis').innerHTML = '<p class="hint">명단 정보를 읽지 못했어요: ' + esc(e.code || e.message) + '</p>'; }
+}
+$('#buyerBtn').addEventListener('click', async () => {
+  const f = $('#buyerFile').files[0], out = $('#buyerMsg');
+  if (!f) { msg(out, '먼저 장부에서 만든 명단 파일(.csv)을 골라 주세요.', 'bad'); return; }
+  let rows;
+  try { rows = parseCsv(await readTextSmart(f)); } catch (e) { msg(out, '파일을 읽지 못했어요: ' + e.message, 'bad'); return; }
+  if (rows.length < 2) { msg(out, '파일에 명단이 없어요.', 'bad'); return; }
+  const head = rows[0].map((h) => String(h).replace(/\s/g, ''));
+  let pi = head.findIndex((h) => /연락처|전화|휴대폰|phone/i.test(h));
+  let ai = head.findIndex((h) => /누적구매액|구매액|금액|amount/i.test(h));
+  if (pi < 0) { msg(out, "'연락처' 칸을 찾지 못했어요. 장부의 [설문용 구매자 명단 내보내기]로 만든 파일인지 확인해 주세요.", 'bad'); return; }
+  const agg = new Map(); const st = { safe: 0, bad: 0 };
+  rows.slice(1).forEach((r) => {
+    let d = String(r[pi] || '').replace(/\D/g, '');
+    if (d.length === 10 && d.startsWith('1')) d = '0' + d; // 엑셀이 맨 앞 0을 지운 경우
+    if (d.startsWith('050')) { st.safe++; return; }
+    if (!/^01[016789]\d{7,8}$/.test(d)) { st.bad++; return; }
+    const amt = ai >= 0 ? Number(String(r[ai] || '0').replace(/[^\d.-]/g, '')) || 0 : 0;
+    agg.set(d, (agg.get(d) || 0) + amt);
+  });
+  if (!agg.size) { msg(out, '올릴 수 있는 번호가 없어요.', 'bad'); return; }
+  const eligibleCnt = [...agg.values()].filter((v) => v >= C.EVENT.couponHistoryAmount).length;
+  if (!confirm(`구매자 ${agg.size.toLocaleString()}명 (쿠폰 대상 ${eligibleCnt.toLocaleString()}명)으로 명단을 바꿉니다.\n제외: 안심번호 ${st.safe} · 형식 오류 ${st.bad}\n\n진행할까요?`)) return;
+  $('#buyerBtn').disabled = true;
+  try {
+    msg(out, '암호값으로 바꾸는 중…');
+    const next = new Map();
+    for (const [p, amt] of agg) next.set(await buyerHash(p), amt >= C.EVENT.couponHistoryAmount);
+    msg(out, '기존 명단과 비교하는 중…');
+    const old = await F.getDocs(F.collection(db, 'buyers'));
+    const ops = [];
+    old.docs.forEach((d) => { if (!next.has(d.id)) ops.push(['del', d.id]); });
+    const oldMap = new Map(old.docs.map((d) => [d.id, (d.data() || {}).e === true]));
+    next.forEach((e, h) => { if (!oldMap.has(h) || oldMap.get(h) !== e) ops.push(['set', h, e]); });
+    for (let i = 0; i < ops.length; i += 400) {
+      const b = F.writeBatch(db);
+      ops.slice(i, i + 400).forEach((o) => (o[0] === 'del' ? b.delete(F.doc(db, 'buyers', o[1])) : b.set(F.doc(db, 'buyers', o[1]), { e: o[2] })));
+      await b.commit();
+      msg(out, `저장 중… ${Math.min(i + 400, ops.length).toLocaleString()} / ${ops.length.toLocaleString()}`);
+    }
+    await F.setDoc(F.doc(db, 'meta', 'buyers'), { count: next.size, eligible: eligibleCnt, at: F.serverTimestamp(), file: f.name.slice(0, 100) });
+    $('#buyerFile').value = '';
+    msg(out, `완료! 구매자 ${next.size.toLocaleString()}명 (쿠폰 대상 ${eligibleCnt.toLocaleString()}명) · 바뀐 항목 ${ops.length.toLocaleString()}개. 이제 PC의 명단 파일은 지워 주세요.`, 'ok');
+    loadBuyerMeta();
+  } catch (e) {
+    msg(out, '올리지 못했어요: ' + (e.code === 'permission-denied' ? '권한 없음 — firestore.rules 를 새 버전으로 바꿔 게시했는지 확인해 주세요.' : (e.code || e.message)) + ' (다시 누르면 이어서 맞춰 줍니다)', 'bad');
+  } finally { $('#buyerBtn').disabled = false; }
 });
 
 boot();

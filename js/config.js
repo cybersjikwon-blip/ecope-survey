@@ -4,7 +4,7 @@
 
 // 버전: 파일을 고쳐서 다시 올릴 때마다 숫자를 올리고,
 // index.html · admin.html · js/admin.js · js/survey.js 의 "?v=" 뒤 숫자도 같이 바꿔 주세요 (브라우저 캐시 갱신용).
-export const APP_VERSION = '1.0.2';
+export const APP_VERSION = '1.1.0';
 
 // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) 에서 복사해 붙여넣기
 export const firebaseConfig = {
@@ -17,8 +17,13 @@ export const firebaseConfig = {
   measurementId: "G-X58BQNJK68"
 };
 
+// 구매자 확인: true 면 '구매자 명단'에 있는 휴대폰 번호로만 참여 가능 (1명 1회)
+//  명단은 장부 프로그램 [리포트 > 고객별 순위 > 설문용 구매자 명단 내보내기] → 관리자 페이지에 올리기
+//  false 로 바꾸면 누구나 참여 (firestore.rules 의 requireBuyer() 도 false 로 같이 바꿔야 함)
+export const BUYER_CHECK = true;
+
 // 결과를 볼 수 있는 관리자 구글 계정 (firestore.rules 에도 똑같이 적어야 함)
-export const ADMIN_EMAILS = ['cybersjikwon@gmail.com'];
+export const ADMIN_EMAILS = ['cybersji@gmail.com'];
 
 // Firebase SDK 주소 (바꾸지 마세요)
 export const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
