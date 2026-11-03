@@ -1,4 +1,4 @@
-import * as C from './config.js';
+import * as C from './config.js?v=1.0.2';
 
 const $ = (s) => document.querySelector(s);
 const won = (n) => n.toLocaleString('ko-KR') + '원';

@@ -1,4 +1,4 @@
-import * as C from './config.js';
+import * as C from './config.js?v=1.0.2';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -51,10 +51,19 @@ $('#logoutBtn').addEventListener('click', () => A.signOut(auth));
 
 function onUser(u) {
   $('#who').textContent = u ? u.email : '';
-  const ok = u && C.ADMIN_EMAILS.map((x) => x.toLowerCase()).includes((u.email || '').toLowerCase());
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  const admins = (C.ADMIN_EMAILS || []).map(norm).filter(Boolean);
+  const ok = u && admins.includes(norm(u.email));
   $('#loginBox').hidden = !!ok;
   $('#dash').hidden = !ok;
-  if (u && !ok) { msg($('#loginMsg'), `${u.email} 계정은 관리자가 아니에요. 관리자 계정으로 다시 로그인해 주세요.`, 'bad'); A.signOut(auth); }
+  if (u && !ok) {
+    const mask = (e) => { const [id, d] = e.split('@'); return (id || '').slice(0, 3) + '***@' + (d || ''); };
+    const reg = admins.length ? admins.map(mask).join(', ') : '(없음)';
+    const hint = admins.some((e) => e.includes('관리자이메일')) ? ' → config.js 에 아직 예시 이메일이 들어 있어요. 본인 이메일로 바꿔 다시 올려 주세요.'
+      : ' → 철자가 다르거나, 수정한 config.js 가 아직 반영 전일 수 있어요 (올린 뒤 최대 10분, Ctrl+Shift+R).';
+    msg($('#loginMsg'), `로그인한 계정: ${u.email} / config.js 에 등록된 관리자: ${reg}${hint}`, 'bad');
+    A.signOut(auth);
+  }
   if (ok) { load(); setupQr(); }
 }
 

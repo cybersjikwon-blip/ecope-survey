@@ -3,12 +3,12 @@
 // =====================================================================
 
 // 버전: 파일을 고쳐서 다시 올릴 때마다 숫자를 올리고,
-// index.html · admin.html 의 "?v=" 뒤 숫자도 같이 바꿔 주세요 (브라우저 캐시 갱신용).
-export const APP_VERSION = '1.0.1';
+// index.html · admin.html · js/admin.js · js/survey.js 의 "?v=" 뒤 숫자도 같이 바꿔 주세요 (브라우저 캐시 갱신용).
+export const APP_VERSION = '1.0.2';
 
 // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) 에서 복사해 붙여넣기
 export const firebaseConfig = {
-  apiKey: "AIzaSyDu319varonEXP5lxeGrkSwwBh9NQ8WOOU",
+  aapiKey: "AIzaSyDu319varonEXP5lxeGrkSwwBh9NQ8WOOU",
   authDomain: "plastic-vote.firebaseapp.com",
   projectId: "plastic-vote",
   storageBucket: "plastic-vote.firebasestorage.app",
@@ -18,7 +18,7 @@ export const firebaseConfig = {
 };
 
 // 결과를 볼 수 있는 관리자 구글 계정 (firestore.rules 에도 똑같이 적어야 함)
-export const ADMIN_EMAILS = ['관리자이메일@gmail.com'];
+export const ADMIN_EMAILS = ['cybersjikwon@gmail.com'];
 
 // Firebase SDK 주소 (바꾸지 마세요)
 export const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
