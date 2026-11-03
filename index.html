@@ -7,14 +7,31 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=1.0.1">
+<link rel="stylesheet" href="css/style.css?v=1.1.0">
 </head>
 <body>
 <div class="wrap">
   <header class="top"><b>(주)에누리하우스</b><span>Eco PE 대형비닐봉투</span></header>
   <div id="setupNotice" class="notice" hidden></div>
 
-  <main id="survey">
+  <section id="gate" hidden>
+    <div class="hero">
+      <h1>새로 만들 봉투,<br><span class="mark">고객님이 크기를 정해 주세요.</span></h1>
+      <p>에누리하우스에서 구매해 주신 고객님만 참여할 수 있어요. 1분이면 끝나요.</p>
+    </div>
+    <div class="panel">
+      <fieldset>
+        <legend>구매 고객 확인</legend>
+        <label class="f" for="gph">주문하실 때 입력한 휴대폰 번호</label>
+        <input type="tel" id="gph" maxlength="13" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000">
+        <p class="hint">번호는 구매 고객인지 확인하는 데만 쓰고 저장하지 않아요.</p>
+        <button type="button" class="primary" id="gateBtn">확인하기</button>
+        <div class="msg" id="gateMsg" role="status" aria-live="polite"></div>
+      </fieldset>
+    </div>
+  </section>
+
+  <main id="survey" hidden>
     <section class="hero">
       <h1>새로 만들 봉투,<br><span class="mark">고객님이 크기를 정해 주세요.</span></h1>
       <p>가장 많이 선택된 크기부터 만들 예정이에요. 1분이면 끝나요.</p>
@@ -112,6 +129,6 @@
   }, 5000);
 })();
 </script>
-<script type="module" src="js/survey.js?v=1.0.1"></script>
+<script type="module" src="js/survey.js?v=1.1.0"></script>
 </body>
 </html>
