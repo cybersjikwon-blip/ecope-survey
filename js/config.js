@@ -23,7 +23,7 @@ export const firebaseConfig = {
 export const BUYER_CHECK = true;
 
 // 결과를 볼 수 있는 관리자 구글 계정 (firestore.rules 에도 똑같이 적어야 함)
-export const ADMIN_EMAILS = ['cybersji@gmail.com'];
+export const ADMIN_EMAILS = ['cybersjikwon@gmail.com'];
 
 // Firebase SDK 주소 (바꾸지 마세요)
 export const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
