@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>설문 결과 · 관리자</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap">
+<link rel="stylesheet" href="css/style.css?v=1.0.1">
+</head>
+<body class="admin">
+<div class="wrap">
+  <header class="top"><b>설문 결과 · 관리자</b><span id="who"></span></header>
+  <div class="panel">
+    <div id="setupNotice" class="notice" hidden></div>
+
+    <section id="loginBox">
+      <p>관리자 구글 계정으로 로그인해야 결과를 볼 수 있어요.</p>
+      <button class="primary" id="loginBtn">구글 계정으로 로그인</button>
+      <div class="msg" id="loginMsg" role="status"></div>
+    </section>
+
+    <section id="dash" hidden>
+      <div class="toolbar">
+        <label for="fltCoupon" class="hint">보기</label>
+        <select id="fltCoupon"><option value="all">전체 응답</option><option value="coupon">쿠폰 신청자만</option><option value="nocoupon">쿠폰 미신청자만</option></select>
+        <label for="fltFrom" class="hint">기간</label><input type="date" id="fltFrom"> ~ <input type="date" id="fltTo">
+        <button class="ghost" id="reloadBtn">새로고침</button>
+        <button class="ghost" id="csvBtn">엑셀(CSV) 받기</button>
+        <button class="ghost" id="logoutBtn">로그아웃</button>
+      </div>
+      <div class="msg" id="dashMsg" role="status"></div>
+      <div class="kpis" id="kpis"></div>
+
+      <h2 class="sec">1. 크기 선택 비율</h2>
+      <p class="hint">응답자 중 그 크기를 고른 사람의 비율 (최대 2개 선택이라 합계가 100%를 넘을 수 있어요)</p>
+      <div id="chSize"></div>
+
+      <h2 class="sec">직접 입력한 크기 (5cm 단위로 묶음)</h2>
+      <div id="chCustom"></div>
+      <details><summary class="hint">직접 입력 원본 보기</summary><div class="tbl"><table><thead><tr><th>날짜</th><th>가로×세로</th><th>두께</th><th>메모</th></tr></thead><tbody id="customRaw"></tbody></table></div></details>
+
+      <h2 class="sec">2. 용도</h2><div id="chUse"></div>
+      <h2 class="sec">3. 두께 선호</h2><div id="chThick"></div>
+      <h2 class="sec">4. 구매 방식</h2><div id="chQty"></div>
+      <h2 class="sec">유입 경로</h2><div id="chSrc"></div>
+
+      <h2 class="sec">5. 하고 싶은 말씀</h2>
+      <div class="tbl"><table><thead><tr><th>날짜</th><th>내용</th></tr></thead><tbody id="comments"></tbody></table></div>
+
+      <h2 class="sec">쿠폰 신청 관리</h2>
+      <p class="hint">장부·주문내역에서 누적 구매액을 확인하고 쿠폰을 보낸 뒤 상태를 바꿔 주세요. 같은 이름이 여러 번이면 <span class="dup">중복?</span> 표시가 붙어요.</p>
+      <div class="toolbar">
+        <select id="fltStatus"><option value="">상태 전체</option><option value="pending">확인 대기</option><option value="issued">지급 완료</option><option value="rejected">대상 아님</option></select>
+        <button class="ghost" id="purgeBtn">처리 끝난 신청자 개인정보 파기</button>
+      </div>
+      <div class="tbl"><table><thead><tr><th>접수일</th><th>이름</th><th>휴대폰</th><th>구매처</th><th>유입</th><th>상태</th><th></th></tr></thead><tbody id="couponRows"></tbody></table></div>
+
+      <h2 class="sec">설문 링크 · QR 코드</h2>
+      <p class="hint">경로별로 링크를 나눠 쓰면 어디서 많이 들어왔는지 알 수 있어요. QR 이미지를 받아 상세페이지·택배 전단에 넣으세요.</p>
+      <div class="toolbar"><select id="qrSrc"></select><button class="ghost" id="copyBtn">링크 복사</button><a class="ghost" id="qrDown" download="survey-qr.png" style="display:inline-flex;align-items:center;min-height:48px;padding:0 18px;border-radius:4px;text-decoration:none;font-weight:700">QR 이미지 받기</a></div>
+      <p><code id="qrUrl"></code></p>
+      <div id="qr"></div>
+    </section>
+  </div>
+  <footer>관리자 페이지 v<span id="ver"></span></footer>
+</div>
+<script src="js/vendor/qrcode.js?v=1.0.1"></script>
+<script>
+/* 프로그램이 못 뜨는 경우를 알려주는 안전장치 (모듈 스크립트와 별개로 항상 실행) */
+(function () {
+  function note(t) { var n = document.getElementById('setupNotice'); if (n) { n.hidden = false; n.textContent = t; } }
+  if (location.protocol === 'file:') {
+    note('PC에서 파일을 더블클릭해 열면 작동하지 않아요(브라우저 보안 제한). GitHub에 올린 주소(https://내아이디.github.io/ecope-survey/admin.html)로 열어 주세요.');
+    return;
+  }
+  setTimeout(function () {
+    if (!window.__appReady) note('프로그램 파일을 불러오지 못했어요. Ctrl+F5로 새로고침해 보시고, 계속되면 GitHub에 js 폴더와 css 폴더가 함께 올라갔는지 확인해 주세요.');
+  }, 5000);
+})();
+</script>
+<script type="module" src="js/admin.js?v=1.0.1"></script>
+</body>
+</html>
