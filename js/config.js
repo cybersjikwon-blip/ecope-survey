@@ -4,17 +4,16 @@
 
 // 버전: 파일을 고쳐서 다시 올릴 때마다 숫자를 올리고,
 // index.html · admin.html · js/admin.js · js/survey.js 의 "?v=" 뒤 숫자도 같이 바꿔 주세요 (브라우저 캐시 갱신용).
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.1.1';
 
 // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) 에서 복사해 붙여넣기
 export const firebaseConfig = {
-  apiKey: "AIzaSyDu319varonEXP5lxeGrkSwwBh9NQ8WOOU",
-  authDomain: "plastic-vote.firebaseapp.com",
-  projectId: "plastic-vote",
-  storageBucket: "plastic-vote.firebasestorage.app",
-  messagingSenderId: "800621259206",
-  appId: "1:800621259206:web:ec1723dea90ce409ee2ac7",
-  measurementId: "G-X58BQNJK68"
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: ''
 };
 
 // 구매자 확인: true 면 '구매자 명단'에 있는 휴대폰 번호로만 참여 가능 (1명 1회)
@@ -22,8 +21,11 @@ export const firebaseConfig = {
 //  false 로 바꾸면 누구나 참여 (firestore.rules 의 requireBuyer() 도 false 로 같이 바꿔야 함)
 export const BUYER_CHECK = true;
 
+// 설문 도중 나갔다가 이 시간(분) 넘게 지나서 오면 처음 화면부터 (config.js 에 없으면 15분)
+export const IDLE_RESET_MINUTES = 15;
+
 // 결과를 볼 수 있는 관리자 구글 계정 (firestore.rules 에도 똑같이 적어야 함)
-export const ADMIN_EMAILS = ['cybersjikwon@gmail.com'];
+export const ADMIN_EMAILS = ['관리자이메일@gmail.com'];
 
 // Firebase SDK 주소 (바꾸지 마세요)
 export const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2';

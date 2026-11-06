@@ -235,6 +235,7 @@ function errorText(e, item) {
 async function submitItem(item, isRetry) {
   const btn = $('#submitBtn'), msg = $('#formMsg');
   btn.disabled = true; btn.textContent = '보내는 중…'; msg.className = 'msg'; msg.textContent = '';
+  if (!item.savedAt) item.savedAt = Date.now();
   ls.set(LS_PENDING, JSON.stringify(item));
   try {
     await send(item);
@@ -264,23 +265,66 @@ $('#f').addEventListener('submit', (ev) => {
   submitItem({ id, data }, false);
 });
 
+// ---------- 처음 화면으로 되돌리기 (중간에 나갔다가 시간이 지나 다시 온 경우) ----------
+const IDLE_MS = (Number(C.IDLE_RESET_MINUTES) || 15) * 60 * 1000;   // 이 시간 동안 아무 조작이 없으면 처음부터
+const PENDING_MAX_MS = 24 * 60 * 60 * 1000;                           // 못 보낸 응답은 하루만 보관
+let lastActive = Date.now();
+['input', 'change', 'click', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true }));
+
+function startScreen() {
+  if (!surveyOpen) return '#closed';
+  if (ls.get(LS_DONE)) return '#done';
+  return BUYER_CHECK ? '#gate' : '#survey';
+}
+function resetAll() {
+  buyer = null;
+  $('#f').reset();
+  $('#gph').value = '';
+  $('#ph').value = '';
+  ['#customBox', '#couponBox'].forEach((s) => { $(s).hidden = true; });
+  if (BUYER_CHECK) $('#couponSet').hidden = true;
+  ['e1', 'e2', 'e3', 'e4', 'e5'].forEach((k) => { $('#' + k).textContent = ''; });
+  gateMsg('');
+  const m = $('#formMsg'); m.className = 'msg'; m.textContent = '';
+  const btn = $('#submitBtn'); btn.disabled = false; btn.textContent = '설문 제출하기';
+  const scr = startScreen();
+  show(scr);
+  if (scr === '#done') $('#doneText').textContent = '이미 참여해 주셨어요. 감사합니다!';
+  window.scrollTo(0, 0);
+  lastActive = Date.now();
+}
+function resetIfIdle() {
+  if (Date.now() - lastActive > IDLE_MS && !$('#submitBtn').disabled) resetAll();
+}
+// 탭으로 돌아왔을 때 · 뒤로가기로 다시 보였을 때 · 화면을 켜 둔 채 오래 뒀을 때
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') resetIfIdle(); });
+window.addEventListener('focus', resetIfIdle);
+window.addEventListener('pageshow', (e) => { if (e.persisted) resetIfIdle(); else { $('#f').reset(); $('#gph').value = ''; } });
+setInterval(() => { if (document.visibilityState === 'visible') resetIfIdle(); }, 30000);
+
+// 못 보낸 응답: 화면을 붙잡지 않고 뒤에서 조용히 한 번 다시 보내 봄
+async function retryPendingQuietly() {
+  let item = null;
+  try { item = JSON.parse(ls.get(LS_PENDING) || 'null'); } catch (e) { item = null; }
+  if (!item || !item.data) { ls.del(LS_PENDING); return; }
+  if (!item.savedAt || Date.now() - item.savedAt > PENDING_MAX_MS) { ls.del(LS_PENDING); return; }
+  try { await send(item); finish(item.data.coupon); }
+  catch (e) {
+    if (e.code === 'permission-denied') finish(item.data.coupon);  // 이미 저장된 것
+    // 그 밖의 실패는 보관만 해 두고 화면은 처음 그대로
+  }
+}
+
 // ---------- 시작 ----------
 if (!surveyOpen) {
   show('#closed');
   const before = now < kst(C.EVENT.surveyStart);
   $('#closedTitle').textContent = before ? '설문 준비 중이에요' : '설문이 마감됐어요';
   $('#closedText').textContent = before ? `${C.EVENT.surveyStart}부터 참여하실 수 있어요.` : '참여해 주신 모든 분께 감사드립니다.';
-} else if (ls.get(LS_PENDING)) {
-  // 지난번에 못 보낸 응답이 있으면 자동 재전송
-  show('#survey');
-  try { submitItem(JSON.parse(ls.get(LS_PENDING)), true); } catch (e) { ls.del(LS_PENDING); show(BUYER_CHECK ? '#gate' : '#survey'); }
-} else if (ls.get(LS_DONE)) {
-  show('#done');
-  $('#doneText').textContent = '이미 참여해 주셨어요. 감사합니다!';
 } else {
-  show(BUYER_CHECK ? '#gate' : '#survey');
+  resetAll();
+  if (!ls.get(LS_DONE) && ls.get(LS_PENDING)) retryPendingQuietly();
 }
 window.addEventListener('online', () => {
-  const p = ls.get(LS_PENDING);
-  if (p && !$('#submitBtn').disabled) { try { submitItem(JSON.parse(p), true); } catch (e) {} }
+  if (ls.get(LS_PENDING) && !$('#submitBtn').disabled && !ls.get(LS_DONE)) retryPendingQuietly();
 });
