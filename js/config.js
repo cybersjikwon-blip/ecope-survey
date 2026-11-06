@@ -8,12 +8,13 @@ export const APP_VERSION = '1.2.0';
 
 // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) 에서 복사해 붙여넣기
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: "AIzaSyDu319varonEXP5lxeGrkSwwBh9NQ8WOOU",
+  authDomain: "plastic-vote.firebaseapp.com",
+  projectId: "plastic-vote",
+  storageBucket: "plastic-vote.firebasestorage.app",
+  messagingSenderId: "800621259206",
+  appId: "1:800621259206:web:ec1723dea90ce409ee2ac7",
+  measurementId: "G-X58BQNJK68"
 };
 
 // 구매자 확인: true 면 '구매자 명단'에 있는 휴대폰 번호로만 참여 가능 (1명 1회)
@@ -25,7 +26,7 @@ export const BUYER_CHECK = true;
 export const IDLE_RESET_MINUTES = 15;
 
 // 결과를 볼 수 있는 관리자 구글 계정 (firestore.rules 에도 똑같이 적어야 함)
-export const ADMIN_EMAILS = ['관리자이메일@gmail.com'];
+export const ADMIN_EMAILS = ['cybersjikwon@gmail.com'];
 
 // Firebase SDK 주소 (바꾸지 마세요)
 export const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
