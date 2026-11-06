@@ -36,7 +36,7 @@ const configured = CFG_PROBLEMS.length === 0;
 const srcParam = new URLSearchParams(location.search).get('src') || '';
 const SRC = Object.prototype.hasOwnProperty.call(C.SOURCES, srcParam) ? srcParam : (srcParam ? 'etc' : 'direct');
 
-function show(id) { ['#gate', '#survey', '#done', '#closed'].forEach((s) => { const el = $(s); if (el) el.hidden = s !== id; }); }
+function show(id) { ['#survey', '#done', '#closed'].forEach((s) => { const el = $(s); if (el) el.hidden = s !== id; }); }
 
 if (!configured) {
   const n = $('#setupNotice');
@@ -127,37 +127,48 @@ const randId = () => {
 
 // ---------- 구매자 확인 ----------
 let buyer = null; // { hash, phone, eligible }
+let couponNoticed = false;
 function gateMsg(t, kind) { const m = $('#gateMsg'); m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = t || ''; }
 
 async function checkBuyer() {
   const phone = digitsOf($('#gph').value);
-  if (!validPhone(phone)) { gateMsg('휴대폰 번호를 정확히 적어 주세요. (예: 010-1234-5678)', 'bad'); return; }
-  if (!configured) { gateMsg('아직 설문 준비 중이에요. (관리자: Firebase 설정 필요)', 'bad'); return; }
-  const btn = $('#gateBtn'); btn.disabled = true; btn.textContent = '확인 중…'; gateMsg('');
+  if (buyer && buyer.phone === phone) return true;
+  if (!validPhone(phone)) { gateMsg('휴대폰 번호를 정확히 적어 주세요. (예: 010-1234-5678)', 'bad'); return false; }
+  if (!configured) { gateMsg('아직 설문 준비 중이에요. (관리자: Firebase 설정 필요)', 'bad'); return false; }
+  const btn = $('#gateBtn'); btn.disabled = true; btn.textContent = '확인 중…'; gateMsg('확인 중…');
   try {
     const hash = await buyerHash(phone);
     const { fs, db } = await withTimeout(loadFb(), 15000);
     const b = await withTimeout(fs.getDoc(fs.doc(db, 'buyers', hash)), 15000);
     if (!b.exists()) {
       gateMsg(`구매 고객 명단에서 이 번호를 찾지 못했어요. 주문하실 때 입력한 번호인지 확인해 주세요. 안심번호로 주문하셨거나 최근 주문이라 아직 반영되지 않았을 수 있어요. 궁금하시면 ${C.EVENT.contact}으로 알려 주세요.`, 'bad');
-      return;
+      return false;
     }
     const d = await withTimeout(fs.getDoc(fs.doc(db, 'done', hash)), 15000);
-    if (d.exists()) { ls.set(LS_DONE, '1'); show('#done'); $('#doneText').textContent = '이 번호로 이미 참여해 주셨어요. 감사합니다!'; return; }
+    if (d.exists()) { ls.set(LS_DONE, '1'); show('#done'); $('#doneText').textContent = '이 번호로 이미 참여해 주셨어요. 감사합니다!'; window.scrollTo(0, 0); return false; }
     buyer = { hash, phone, eligible: (b.data() || {}).e === true };
     $('#ph').value = `${phone.slice(0, 3)}-${phone.slice(3, phone.length - 4)}-${phone.slice(-4)}`;
-    if (couponOpen && buyer.eligible) $('#couponSet').hidden = false;
-    show('#survey');
-    window.scrollTo(0, 0);
+    const showCoupon = couponOpen && buyer.eligible;
+    if (showCoupon) $('#couponSet').hidden = false;
+    gateMsg(showCoupon ? '✓ 구매 고객으로 확인됐어요. 아래에서 감사 쿠폰도 신청하실 수 있어요.' : '✓ 구매 고객으로 확인됐어요. 아래 [설문 제출하기]를 눌러 주세요.', 'ok');
+    return true;
   } catch (e) {
     console.warn('[survey] buyer check failed:', e);
     gateMsg(e.code === 'permission-denied'
       ? '확인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요. (관리자: 보안 규칙 확인 필요)'
       : '인터넷 연결이 불안정해 확인하지 못했어요. 잠시 후 다시 눌러 주세요.', 'bad');
-  } finally { btn.disabled = false; btn.textContent = '확인하기'; }
+    return false;
+  } finally { btn.disabled = false; btn.textContent = '확인'; }
 }
 $('#gateBtn').addEventListener('click', checkBuyer);
 $('#gph').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkBuyer(); } });
+// 번호를 끝까지 넣으면 바로 확인, 번호를 고치면 확인 취소
+$('#gph').addEventListener('input', () => {
+  const d = digitsOf($('#gph').value);
+  if (buyer && buyer.phone !== d) { buyer = null; if (BUYER_CHECK) { $('#couponSet').hidden = true; $('#couponOn').checked = false; $('#couponBox').hidden = true; } gateMsg(''); }
+  if (!buyer && validPhone(d) && d.length === 11) checkBuyer();
+});
+if (!BUYER_CHECK) { $('#verifySet').hidden = true; $('#buyerNote').hidden = true; }
 
 // ---------- 입력값 모으기 + 검사 ----------
 function collect() {
@@ -252,15 +263,32 @@ async function submitItem(item, isRetry) {
   }
 }
 
-$('#f').addEventListener('submit', (ev) => {
+$('#f').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const pending = ls.get(LS_PENDING);
   if (pending && $('#submitBtn').textContent === '다시 보내기') { submitItem(JSON.parse(pending), true); return; }
-  if (BUYER_CHECK && !buyer) { show('#gate'); return; }
-  const { data, err } = collect();
+  const { data: d0, err } = collect();
   ['e1', 'e2', 'e3', 'e4', 'e5'].forEach((k) => { $('#' + k).textContent = err[k] || ''; });
   const first = Object.keys(err)[0];
-  if (first) { $('#' + first).closest('fieldset').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if (first && first !== 'e5') { $('#' + first).closest('fieldset').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if (BUYER_CHECK && !buyer) {
+    $('#verifySet').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!digitsOf($('#gph').value)) { gateMsg('마지막으로 구매 고객 확인이 필요해요. 주문하실 때 입력한 휴대폰 번호를 적어 주세요.', 'bad'); return; }
+    const okBuyer = await checkBuyer();
+    if (!okBuyer) return;
+  }
+  // 쿠폰 대상인데 쿠폰을 안 골랐으면 한 번 알려 줌 (그래도 그냥 내면 그대로 제출)
+  if (BUYER_CHECK && buyer && buyer.eligible && couponOpen && !$('#couponOn').checked && !couponNoticed) {
+    couponNoticed = true;
+    $('#e5').textContent = `쿠폰 대상 고객님이에요! ${won(C.EVENT.couponDiscount)} 쿠폰을 받으시려면 위 칸을 체크해 주세요. 쿠폰 없이 제출하시려면 [설문 제출하기]를 한 번 더 눌러 주세요.`;
+    $('#couponSet').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  const { data, err: err2 } = collect();
+  ['e1', 'e2', 'e3', 'e4', 'e5'].forEach((k) => { $('#' + k).textContent = err2[k] || ''; });
+  const first2 = Object.keys(err2)[0];
+  if (first2) { $('#' + first2).closest('fieldset').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  void d0;
   const id = BUYER_CHECK ? 'b_' + buyer.hash : (data.coupon ? 'p_' + data.phone : randId());
   submitItem({ id, data }, false);
 });
@@ -274,10 +302,11 @@ let lastActive = Date.now();
 function startScreen() {
   if (!surveyOpen) return '#closed';
   if (ls.get(LS_DONE)) return '#done';
-  return BUYER_CHECK ? '#gate' : '#survey';
+  return '#survey';
 }
 function resetAll() {
   buyer = null;
+  couponNoticed = false;
   $('#f').reset();
   $('#gph').value = '';
   $('#ph').value = '';

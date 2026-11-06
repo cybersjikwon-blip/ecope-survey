@@ -4,7 +4,7 @@
 
 // 버전: 파일을 고쳐서 다시 올릴 때마다 숫자를 올리고,
 // index.html · admin.html · js/admin.js · js/survey.js 의 "?v=" 뒤 숫자도 같이 바꿔 주세요 (브라우저 캐시 갱신용).
-export const APP_VERSION = '1.1.1';
+export const APP_VERSION = '1.2.0';
 
 // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) 에서 복사해 붙여넣기
 export const firebaseConfig = {
