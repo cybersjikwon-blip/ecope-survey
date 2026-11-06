@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap">
-<link rel="stylesheet" href="css/style.css?v=1.2.0">
+<link rel="stylesheet" href="css/style.css?v=1.2.1">
 </head>
 <body>
 <div class="wrap">
@@ -26,7 +26,7 @@
       <fieldset>
         <legend>1. 필요한 크기를 골라 주세요 <small id="pickHint"></small></legend>
         <div class="cards" id="sizeList"></div>
-        <label class="opt"><input type="checkbox" id="customOn"> 원하는 크기가 따로 있어요 (직접 입력)</label>
+        <label class="opt custom-pick"><input type="checkbox" id="customOn"><span><b>원하는 크기가 따로 있어요</b><br><span class="ds">위에 없으면 직접 적어 주세요 (가로 · 세로 · 두께)</span></span></label>
         <div class="sub" id="customBox" hidden>
           <div class="row">
             <label for="cw" class="hint">가로</label><input type="number" id="cw" inputmode="numeric" min="10" max="400" placeholder="예: 90"> cm ×
@@ -124,6 +124,6 @@
   }, 5000);
 })();
 </script>
-<script type="module" src="js/survey.js?v=1.2.0"></script>
+<script type="module" src="js/survey.js?v=1.2.1"></script>
 </body>
 </html>

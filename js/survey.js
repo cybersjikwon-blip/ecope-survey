@@ -75,13 +75,13 @@ $('#chn').innerHTML = C.CHANNELS.map((c) => `<option>${c}</option>`).join('');
 
 const E = C.EVENT;
 const condHtml = `<b>대상</b> 에누리하우스 누적 구매 <b>${won(E.couponHistoryAmount)} 이상</b> 고객님
-  <ul><li>혜택: 다음 주문 <b>${won(E.couponMinOrder)} 이상</b> 구매 시 <b>${won(E.couponDiscount)} 할인</b> 쿠폰</li>
+  <ul><li>혜택: <b>${won(E.couponDiscount)} 할인</b> 쿠폰 (<b>${won(E.couponMinOrder)} 이상 구매 시 사용 가능</b>)</li>
   <li>${BUYER_CHECK ? '구매 내역으로 대상 여부를 확인했어요. 신청하시면 순차적으로 지급해 드립니다.' : '구매 내역을 확인한 뒤 순차적으로 지급해 드립니다. (대상이 아니면 지급되지 않아요)'}</li>
   <li>쿠폰 신청 마감: ${E.couponEnd} · 휴대폰 번호 1개당 1회</li></ul>`;
 if (couponOpen) {
   $('#couponCond').innerHTML = condHtml;
   $('#couponBanner').hidden = false;
-  $('#couponBanner').innerHTML = `누적 구매 ${won(E.couponHistoryAmount)} 이상 고객님께는 참여 감사 <b>${won(E.couponDiscount)} 할인쿠폰</b>을 드려요. (${won(E.couponMinOrder)} 이상 구매 시)`;
+  $('#couponBanner').innerHTML = `누적 구매 ${won(E.couponHistoryAmount)} 이상 고객님께는 참여 감사 <b>${won(E.couponDiscount)} 할인쿠폰</b>을 드려요. (${won(E.couponMinOrder)} 이상 구매 시 사용 가능)`;
   if (!BUYER_CHECK) $('#couponSet').hidden = false; // 구매자 확인 모드에서는 대상자에게만 보임
 }
 $('#consentText').innerHTML = `<b>개인정보 수집·이용 안내</b>
@@ -280,7 +280,7 @@ $('#f').addEventListener('submit', async (ev) => {
   // 쿠폰 대상인데 쿠폰을 안 골랐으면 한 번 알려 줌 (그래도 그냥 내면 그대로 제출)
   if (BUYER_CHECK && buyer && buyer.eligible && couponOpen && !$('#couponOn').checked && !couponNoticed) {
     couponNoticed = true;
-    $('#e5').textContent = `쿠폰 대상 고객님이에요! ${won(C.EVENT.couponDiscount)} 쿠폰을 받으시려면 위 칸을 체크해 주세요. 쿠폰 없이 제출하시려면 [설문 제출하기]를 한 번 더 눌러 주세요.`;
+    $('#e5').textContent = `쿠폰 대상 고객님이에요! ${won(C.EVENT.couponDiscount)} 쿠폰(${won(C.EVENT.couponMinOrder)} 이상 구매 시 사용 가능)을 받으시려면 위 칸을 체크해 주세요. 쿠폰 없이 제출하시려면 [설문 제출하기]를 한 번 더 눌러 주세요.`;
     $('#couponSet').scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
